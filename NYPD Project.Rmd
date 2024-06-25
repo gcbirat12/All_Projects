@@ -1,0 +1,115 @@
+---
+title: "NYPD Incident"
+author: "BG"
+date: "2024-06-06"
+output:
+  pdf_document: default
+  word_document: default
+---
+Introduction:
+In recent years, shooting incidents have been a significant concern in New York City. This report aims to analyze the NYPD Shooting Incident dataset to uncover patterns, trends, and potential biases. The analysis includes data cleaning, exploratory data analysis (EDA), visualizations, and a linear regression model to understand the relationship between the hour of day and the number of shooting incidents.
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(lubridate)
+library(ggplot2)
+library(gridExtra)
+library(knitr)
+```
+
+Import Data:
+
+```{r import_data, message=FALSE}
+nypd_shooting <- read_csv("https://data.cityofnewyork.us/api/views/833y-fsy8/rows.csv?accessType=DOWNLOAD")
+
+head(nypd_shooting, 10)
+
+```
+Data Cleaning:
+
+```{r cleaning_data_}
+nypd_shooting <- nypd_shooting %>%
+  rename(Date = OCCUR_DATE,
+         Time = OCCUR_TIME)
+
+nypd_shooting <- nypd_shooting %>% 
+  mutate(across(everything(), ~ifelse(is.na(.), "N/A", .)))
+sum(is.na(nypd_shooting))
+
+nypd_shooting <- distinct(nypd_shooting)
+nypd_shooting$Date <- as.Date(nypd_shooting$Date, format = "%m/%d/%Y")
+
+nypd_shooting <- nypd_shooting %>%
+  mutate(Population = case_when(
+    BORO == "BROOKLYN" ~ 2576771,
+    BORO == "QUEENS" ~ 2270976,
+    BORO == "BRONX" ~ 1427056,
+    BORO == "MANHATTAN" ~ 1629153,
+    BORO == "STATEN ISLAND" ~ 475596,
+    TRUE ~ NA_real_
+  ))
+
+
+```
+Exploratory Data Analysis:
+Distribution of Incidents Over Time:
+
+```{r EDA1}
+nypd_shooting$Date <- as.Date(nypd_shooting$Date, format = "%m/%d/%Y")
+
+ggplot(nypd_shooting, aes(x = Date)) +
+  geom_histogram(binwidth = 30, fill = "blue", color = "black") +
+  labs(title = "Distribution of Shooting Incidents Over Time", x = "Date", y = "Number of Incidents") +
+  theme_minimal()
+
+
+```
+
+Incidents by Time of Day:
+
+
+```{r EDA2}
+nypd_shooting$Time <- hms::as_hms(nypd_shooting$Time)
+
+nypd_shooting <- nypd_shooting %>%
+  mutate(Hour = hour(Time))
+
+ggplot(nypd_shooting, aes(x = Hour)) +
+  geom_histogram(binwidth = 1, fill = "orange", color = "black") +
+  labs(title = "Shooting Incidents by Hour of Day", x = "Hour of Day", y = "Number of Incidents") +
+  theme_minimal()
+
+
+```
+
+Linear Regression Analysis:
+For the model, we'll look at the relationship between the number of shooting incidents and the hour of day to see if there's a significant trend.
+
+```{r model}
+#Cleaning data accordingly
+hourly_incidents <- nypd_shooting %>%
+  group_by(Hour) %>%
+  summarise(Total_Incidents = n())
+
+# Linear regression model
+lm_hour_model <- lm(Total_Incidents ~ Hour, data = hourly_incidents)
+summary(lm_hour_model)
+
+# Scatter plot with regression line
+ggplot(hourly_incidents, aes(x = Hour, y = Total_Incidents)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE, color = "red") +
+  labs(title = "Linear Regression: Number of Incidents vs. Hour of Day", x = "Hour of Day", y = "Number of Incidents") +
+  theme_minimal()
+
+
+```
+Conclusion:
+The analysis shows distinct patterns in the distribution of shooting incidents over time and by time of day. The linear regression model suggests that there is a trend in the number of incidents based on the hour of the day, which could be useful for law enforcement and policy-making.
+
+
+Location Bias:
+Different areas of New York City have varying levels of police presence, which affects the number of reported incidents. Areas with more police are likely to have more incidents recorded, while those with fewer police may underreport incidents.
